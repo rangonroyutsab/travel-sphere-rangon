@@ -1,0 +1,15 @@
+<h1>{{.Title}}</h1>
+{{if .Error}}
+<p>{{.Error}}</p>
+{{end}}
+<form method="post" action="/login">
+    <label>
+    Username
+    <input name="username" type="text">
+    </label>
+    <label>
+    Password
+    <input name="password" type="password">
+    </label>
+    <button type="submit">Login</button>
+</form>
