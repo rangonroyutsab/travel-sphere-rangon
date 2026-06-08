@@ -2,10 +2,12 @@ package main
 
 import (
 	_ "travel-sphere-rangon/routers"
+
 	beego "github.com/beego/beego/v2/server/web"
 )
 
 func main() {
+	beego.BConfig.WebConfig.Session.SessionOn = true
+	beego.SetStaticPath("/static", "static")
 	beego.Run()
 }
-
