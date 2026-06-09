@@ -61,13 +61,26 @@
         </div>
     </section>
     <section class="detail-panel">
-        <div>
-            <p class="eyebrow">Attractions</p>
-            <h2>Coming later</h2>
-            <p>
-                Attractions will be added in a later feature slice using OpenTripMap.
-            </p>
-        </div>
-    </section>
+    <div>
+      <p class="eyebrow">Attractions</p>
+      <h2>Nearby places</h2>
+
+      <div class="attraction-list">
+        {{range .Attractions}}
+          <article class="attraction-item">
+            <strong>{{.Name}}</strong>
+
+            {{if .Kind}}
+              <span>{{.Kind}}</span>
+            {{end}}
+          </article>
+        {{else}}
+          <p>
+            Attractions are not available for this destination right now.
+          </p>
+        {{end}}
+      </div>
+    </div>
+  </section>
 </section>
 <script src="/static/js/wishlist.js?v=1"></script>

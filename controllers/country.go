@@ -35,7 +35,10 @@ func (c *CountryDetailController) Get() {
 		return
 	}
 
+	attractions := services.Attractions.GetAttractions(country.Lat, country.Lng)
+
 	c.Data["Title"] = country.Name
 	c.Data["Country"] = country
+	c.Data["Attractions"] = attractions
 	c.TplName = "destination.tpl"
 }
