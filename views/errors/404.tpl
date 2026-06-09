@@ -1,15 +1,11 @@
-<h1>{{.Title}}</h1>
-{{if .Error}}
-<p>{{.Error}}</p>
-{{end}}
-<form method="post" action="/login">
-    <label>
-    Username
-    <input name="username" type="text">
-    </label>
-    <label>
-    Password
-    <input name="password" type="password">
-    </label>
-    <button type="submit">Login</button>
-</form>
+  <section class="page">
+    <h1>{{.Title}}</h1>
+
+    {{if .Message}}
+      <p>{{.Message}}</p>
+    {{else}}
+      <p>The page you requested could not be found.</p>
+    {{end}}
+
+    <a href="/countries">Back to countries</a>
+  </section>
