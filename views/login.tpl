@@ -1,19 +1,37 @@
-<h1>{{.Title}}</h1>
+<section class="page-shell container">
+    <div class="page-heading">
+        <p class="eyebrow">User Authentication</p>
+        <h1>Login</h1>
+        <p>
+            Kindly use the provided credentials to log into this demo authentication system.
+        </p>
+    </div>
 
-  {{if .Error}}
-    <p>{{.Error}}</p>
-  {{end}}
+    {{if .Error}}
+        <p class="form-error">{{.Error}}</p>
+    {{end}}
 
-  <form method="post" action="/login">
-    <label>
-      Username
-      <input name="username" type="text">
-    </label>
+    <div class="login-wrapper">
+        <form class="login-form" method="post" action="/login">
+            <label class="form-field">
+                <span>Username</span>
+                <input
+                    name="username"
+                    type="text"
+                    placeholder="Enter username"
+                >
+            </label>
 
-    <label>
-      Password
-      <input name="password" type="password">
-    </label>
+            <label class="form-field">
+                <span>Password</span>
+                <input
+                    name="password"
+                    type="password"
+                    placeholder="Enter password"
+                >
+            </label>
 
-    <button type="submit">Login</button>
-  </form>
+            <button type="submit">Login</button>
+        </form>
+    </div>
+</section>
