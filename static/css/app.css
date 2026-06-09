@@ -846,3 +846,84 @@
       color: var(--text-muted);
       font-size: 14px;
   }
+
+
+  /* dashboard */
+  .dashboard-layout {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 32px;
+      align-items: start;
+  }
+
+  .dashboard-stats {
+      display: grid;
+      gap: 16px;
+  }
+
+  .stat-card {
+      background: var(--surface-lowest);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+      padding: 24px;
+  }
+
+  .stat-card span {
+      display: block;
+      color: var(--text-muted);
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 8px;
+  }
+
+  .stat-card strong {
+      color: var(--primary);
+      font-size: 36px;
+      font-weight: 900;
+  }
+
+  .dashboard-trips {
+      background: var(--surface-lowest);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+      padding: 32px;
+  }
+
+  .dashboard-trips h1 {
+      margin: 0 0 24px;
+      font-family: var(--font-display);
+      font-size: 44px;
+  }
+
+  .trip-list {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+  }
+
+  .trip-card {
+      background: var(--surface-low);
+      border-radius: var(--radius-md);
+      padding: 18px;
+  }
+
+  .trip-card h3 {
+      margin: 0 0 6px;
+      font-size: 20px;
+  }
+
+  .trip-card p {
+      margin: 0;
+      color: var(--text-muted);
+      font-weight: 700;
+  }
+
+  @media (max-width: 800px) {
+      .dashboard-layout {
+          grid-template-columns: 1fr;
+      }
+
+      .trip-list {
+          grid-template-columns: 1fr;
+      }
+  }
