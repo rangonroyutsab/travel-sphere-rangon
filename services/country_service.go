@@ -69,7 +69,7 @@ func (s *CountryService) GetFeaturedCountries() ([]models.Country, error) {
 	}
 
 	featuredSlugs := []string{
-		"united states",
+		"united-states",
 		"france",
 		"japan",
 		"australia",

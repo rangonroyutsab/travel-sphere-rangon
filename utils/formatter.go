@@ -36,5 +36,5 @@ func Slugify(value string) string {
 	for old, newValue := range replacements {
 		value = strings.ReplaceAll(value, old, newValue)
 	}
-	return value
+	return strings.Join(strings.Fields(value), "-")
 }
