@@ -32,9 +32,7 @@
                             <option value="Visited" {{if eq .Status "Visited"}}selected{{end}}>Visited</option>
                             </select>
                         </td>
-                        <td>
-                            <span class="muted">{{.CreatedAt}}</span>
-                        </td>
+                        <td>{{.CreatedAt.Format "02 Jan 2006, 03:04 PM"}}</td>
                         <td>
                             <div class="row-actions">
                                 <button class="save-btn" type="button">Save</button>
