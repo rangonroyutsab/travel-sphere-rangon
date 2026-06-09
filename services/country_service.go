@@ -68,11 +68,31 @@ func (s *CountryService) GetFeaturedCountries() ([]models.Country, error) {
 		return nil, err
 	}
 
-	if len(countries) > 6 {
-		return countries[:6], nil
+	featuredSlugs := []string{
+		"united states",
+		"france",
+		"japan",
+		"australia",
+		"brazil",
+		"bangladesh",
+		"germany",
+		"argentina",
 	}
 
-	return countries, nil
+	bySlug := make(map[string]models.Country, len(countries))
+	for _, country := range countries {
+		bySlug[country.Slug] = country
+	}
+
+	featured := make([]models.Country, 0, len(featuredSlugs))
+	for _, slug := range featuredSlugs {
+		country, ok := bySlug[slug]
+		if ok {
+			featured = append(featured, country)
+		}
+	}
+
+	return featured, nil
 }
 
 func (s *CountryService) SearchCountries(search string, region string) ([]models.Country, error) {

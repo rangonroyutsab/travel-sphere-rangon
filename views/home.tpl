@@ -45,17 +45,16 @@
         <div class="featured-grid">
             {{range .FeaturedCountries}}
             <a href="/countries/{{.Slug}}" class="featured-card">
-                {{if .Flag}}
-                    <img class="flag-img" src="{{.Flag}}" alt="{{.Name}} flag">
-                {{else}}
-                    <span class="flag">{{.Region}}</span>
-                    {{end}}
+                <div class="featured-card-media">
+                    {{if .Flag}}
+                        <img src="{{.Flag}}" alt="{{.Name}} flag">
+                        {{end}}
+                    </div>
 
-                    <span class="badge">{{.Region}}</span>
-
-                    <h3>{{.Name}}</h3>
-
-                    <p>{{.Capital}} · {{.Population}}</p>
+                    <div class="featured-card-body">
+                        <h3>{{.Name}}</h3>
+                        <p>{{.Capital}} · {{.Region}}</p>
+                    </div>
                 </a>
             {{else}}
                 <div class="empty-panel">
@@ -65,3 +64,5 @@
             </div>
             {{end}}
         </section>
+
+        <script src="/static/js/home.js?v=1"></script>
