@@ -640,6 +640,7 @@
       }
   }
 
+  /* login form */
   .login-wrapper {
       max-width: 520px;
       margin: 32px auto 0;
@@ -729,4 +730,98 @@
       font-weight: 600;
 
       padding: 12px 14px;
+  }
+
+  /* wishlist */
+
+  .wishlist-action-panel,
+  .wishlist-panel {
+      background: var(--surface-lowest);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+      padding: 24px;
+      margin-bottom: 24px;
+  }
+
+  .feedback-area {
+      margin-top: 14px;
+  }
+
+  .success-message,
+  .error-message {
+      border-radius: var(--radius-md);
+      padding: 12px 14px;
+      font-weight: 700;
+  }
+
+  .success-message {
+      background: #dcfce7;
+      color: #166534;
+  }
+
+  .error-message {
+      background: #fee2e2;
+      color: #991b1b;
+  }
+
+  .wishlist-table-wrap {
+      overflow-x: auto;
+  }
+
+  .wishlist-table {
+      width: 100%;
+      border-collapse: collapse;
+  }
+
+  .wishlist-table th,
+  .wishlist-table td {
+      border-bottom: 1px solid rgba(190, 200, 206, 0.45);
+      padding: 14px;
+      text-align: left;
+      vertical-align: middle;
+  }
+
+  .wishlist-table th {
+      color: var(--text-muted);
+      font-size: 13px;
+      text-transform: uppercase;
+  }
+
+  .note-input,
+  .status-select {
+      width: 100%;
+      border: 1px solid var(--outline);
+      border-radius: var(--radius-md);
+      font: inherit;
+      padding: 10px 12px;
+  }
+
+  .row-actions {
+      display: flex;
+      gap: 8px;
+  }
+
+  .save-btn,
+  .delete-btn {
+      border: 0;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      font: inherit;
+      font-weight: 800;
+      padding: 10px 12px;
+  }
+
+  .save-btn {
+      background: var(--primary);
+      color: white;
+  }
+
+  .delete-btn {
+      background: #fee2e2;
+      color: #991b1b;
+  }
+
+  .empty-state,
+  .muted {
+      color: var(--text-muted);
   }

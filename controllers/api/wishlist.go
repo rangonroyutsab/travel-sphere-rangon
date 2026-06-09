@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+
 	"travel-sphere-rangon/models"
 	"travel-sphere-rangon/services"
 
@@ -37,16 +38,12 @@ func (c *WishlistController) Get() {
 	c.ServeJSON()
 }
 
-// When a POST request comes to the wishlist endpoint,
-// read the JSON body,
-// validate and create a wishlist item through the service,
-// then return either an error response or the created item as JSON.
-
 func (c *WishlistController) Post() {
 	username := currentUser(&c.Controller)
 
 	var req wishlistCreateRequest
-	if err := json.Unmarshal(c.Ctx.Input.RequestBody, &req); err != nil {
+
+	if err := json.NewDecoder(c.Ctx.Request.Body).Decode(&req); err != nil {
 		c.Ctx.Output.SetStatus(http.StatusBadRequest)
 		c.Data["json"] = models.ErrorResponse{
 			Message: "Invalid JSON payload.",
@@ -81,7 +78,8 @@ func (c *WishlistItemController) Put() {
 	id := c.Ctx.Input.Param(":id")
 
 	var req wishlistUpdateRequest
-	if err := json.Unmarshal(c.Ctx.Input.RequestBody, &req); err != nil {
+
+	if err := json.NewDecoder(c.Ctx.Request.Body).Decode(&req); err != nil {
 		c.Ctx.Output.SetStatus(http.StatusBadRequest)
 		c.Data["json"] = models.ErrorResponse{
 			Message: "Invalid JSON payload.",
