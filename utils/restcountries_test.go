@@ -1,23 +1,24 @@
 package utils
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
+	"strconv"
 	"testing"
 	"time"
+
+	beego "github.com/beego/beego/v2/server/web"
 )
+
+const testRestCountriesResponseFields = "names,capitals,region,subregion,population,flag,currencies,languages,coordinates"
 
 func newMockRestCountriesClient(t *testing.T, statusCode int, responseBody string) (*RestCountriesClient, func()) {
 	t.Helper()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/all" {
-			t.Fatalf("expected path /all, got %s", r.URL.Path)
-		}
-
-		if r.URL.Query().Get("fields") == "" {
-			t.Fatal("expected fields query parameter")
-		}
+		assertRestCountriesRequest(t, r, 0)
 
 		w.WriteHeader(statusCode)
 		_, _ = w.Write([]byte(responseBody))
@@ -25,6 +26,7 @@ func newMockRestCountriesClient(t *testing.T, statusCode int, responseBody strin
 
 	client := &RestCountriesClient{
 		BaseURL: server.URL,
+		APIKey:  "test-api-key",
 		HTTPClient: &http.Client{
 			Timeout: 2 * time.Second,
 		},
@@ -33,32 +35,76 @@ func newMockRestCountriesClient(t *testing.T, statusCode int, responseBody strin
 	return client, server.Close
 }
 
-func TestRestCountriesClientGetAllCountries(t *testing.T) {
-	client, cleanup := newMockRestCountriesClient(t, http.StatusOK, `[
-		{
-			"name": {
-				"common": "Japan",
-				"official": "Japan"
-			},
-			"capital": ["Tokyo"],
-			"region": "Asia",
-			"subregion": "Eastern Asia",
-			"population": 125800000,
-			"flags": {
-				"png": "https://example.com/japan.png",
-				"svg": "https://example.com/japan.svg"
-			},
-			"currencies": {
-				"JPY": {
-					"name": "Japanese yen"
-				}
-			},
-			"languages": {
-				"jpn": "Japanese"
-			},
-			"latlng": [36.0, 138.0]
+func assertRestCountriesRequest(t *testing.T, r *http.Request, expectedOffset int) {
+	t.Helper()
+
+	if r.URL.Path != "/" {
+		t.Fatalf("expected root path, got %s", r.URL.Path)
+	}
+
+	if r.Header.Get("Authorization") != "Bearer test-api-key" {
+		t.Fatalf("expected bearer auth header, got %q", r.Header.Get("Authorization"))
+	}
+
+	if r.Header.Get("Accept") != "application/json" {
+		t.Fatalf("expected Accept application/json, got %q", r.Header.Get("Accept"))
+	}
+
+	query := r.URL.Query()
+	if query.Get("response_fields") != testRestCountriesResponseFields {
+		t.Fatalf("expected response_fields %q, got %q", testRestCountriesResponseFields, query.Get("response_fields"))
+	}
+
+	if query.Get("limit") != "100" {
+		t.Fatalf("expected limit 100, got %q", query.Get("limit"))
+	}
+
+	if query.Get("offset") != strconv.Itoa(expectedOffset) {
+		t.Fatalf("expected offset %d, got %q", expectedOffset, query.Get("offset"))
+	}
+}
+
+func restCountriesPage(objects string, count int, offset int, more bool) string {
+	return fmt.Sprintf(`{
+		"data": {
+			"objects": [%s],
+			"meta": {
+				"count": %d,
+				"offset": %d,
+				"more": %t
+			}
 		}
-	]`)
+	}`, objects, count, offset, more)
+}
+
+func TestRestCountriesClientGetAllCountries(t *testing.T) {
+	client, cleanup := newMockRestCountriesClient(t, http.StatusOK, restCountriesPage(`{
+		"names": {
+			"common": "Japan",
+			"official": "Japan"
+		},
+		"capitals": [{"name": "Tokyo"}],
+		"region": "Asia",
+		"subregion": "Eastern Asia",
+		"population": 125800000,
+		"flag": {
+			"url_png": "https://example.com/japan.png",
+			"url_svg": "https://example.com/japan.svg"
+		},
+		"currencies": [
+			{
+				"code": "JPY",
+				"name": "Japanese yen"
+			}
+		],
+		"languages": [
+			{"name": "Japanese"}
+		],
+		"coordinates": {
+			"lat": 36.0,
+			"lng": 138.0
+		}
+	}`, 1, 0, false))
 	defer cleanup()
 
 	countries, err := client.GetAllCountries()
@@ -122,52 +168,58 @@ func TestRestCountriesClientGetAllCountries(t *testing.T) {
 }
 
 func TestRestCountriesClientSortsCountriesByName(t *testing.T) {
-	client, cleanup := newMockRestCountriesClient(t, http.StatusOK, `[
-		{
-			"name": {
-				"common": "Zimbabwe",
-				"official": "Republic of Zimbabwe"
-			},
-			"capital": ["Harare"],
-			"region": "Africa",
-			"subregion": "Eastern Africa",
-			"population": 15000000,
-			"flags": {
-				"png": "https://example.com/zimbabwe.png"
-			},
-			"currencies": {
-				"USD": {
-					"name": "United States dollar"
-				}
-			},
-			"languages": {
-				"eng": "English"
-			},
-			"latlng": [-20.0, 30.0]
+	client, cleanup := newMockRestCountriesClient(t, http.StatusOK, restCountriesPage(`{
+		"names": {
+			"common": "Zimbabwe",
+			"official": "Republic of Zimbabwe"
 		},
-		{
-			"name": {
-				"common": "Australia",
-				"official": "Commonwealth of Australia"
-			},
-			"capital": ["Canberra"],
-			"region": "Oceania",
-			"subregion": "Australia and New Zealand",
-			"population": 26000000,
-			"flags": {
-				"png": "https://example.com/australia.png"
-			},
-			"currencies": {
-				"AUD": {
-					"name": "Australian dollar"
-				}
-			},
-			"languages": {
-				"eng": "English"
-			},
-			"latlng": [-27.0, 133.0]
+		"capitals": [{"name": "Harare"}],
+		"region": "Africa",
+		"subregion": "Eastern Africa",
+		"population": 15000000,
+		"flag": {
+			"url_png": "https://example.com/zimbabwe.png"
+		},
+		"currencies": [
+			{
+				"code": "USD",
+				"name": "United States dollar"
+			}
+		],
+		"languages": [
+			{"name": "English"}
+		],
+		"coordinates": {
+			"lat": -20.0,
+			"lng": 30.0
 		}
-	]`)
+	},
+	{
+		"names": {
+			"common": "Australia",
+			"official": "Commonwealth of Australia"
+		},
+		"capitals": [{"name": "Canberra"}],
+		"region": "Oceania",
+		"subregion": "Australia and New Zealand",
+		"population": 26000000,
+		"flag": {
+			"url_png": "https://example.com/australia.png"
+		},
+		"currencies": [
+			{
+				"code": "AUD",
+				"name": "Australian dollar"
+			}
+		],
+		"languages": [
+			{"name": "English"}
+		],
+		"coordinates": {
+			"lat": -27.0,
+			"lng": 133.0
+		}
+	}`, 2, 0, false))
 	defer cleanup()
 
 	countries, err := client.GetAllCountries()
@@ -189,30 +241,32 @@ func TestRestCountriesClientSortsCountriesByName(t *testing.T) {
 }
 
 func TestRestCountriesClientUsesSVGWhenPNGIsMissing(t *testing.T) {
-	client, cleanup := newMockRestCountriesClient(t, http.StatusOK, `[
-		{
-			"name": {
-				"common": "France",
-				"official": "French Republic"
-			},
-			"capital": ["Paris"],
-			"region": "Europe",
-			"subregion": "Western Europe",
-			"population": 67000000,
-			"flags": {
-				"svg": "https://example.com/france.svg"
-			},
-			"currencies": {
-				"EUR": {
-					"name": "Euro"
-				}
-			},
-			"languages": {
-				"fra": "French"
-			},
-			"latlng": [46.0, 2.0]
+	client, cleanup := newMockRestCountriesClient(t, http.StatusOK, restCountriesPage(`{
+		"names": {
+			"common": "France",
+			"official": "French Republic"
+		},
+		"capitals": [{"name": "Paris"}],
+		"region": "Europe",
+		"subregion": "Western Europe",
+		"population": 67000000,
+		"flag": {
+			"url_svg": "https://example.com/france.svg"
+		},
+		"currencies": [
+			{
+				"code": "EUR",
+				"name": "Euro"
+			}
+		],
+		"languages": [
+			{"name": "French"}
+		],
+		"coordinates": {
+			"lat": 46.0,
+			"lng": 2.0
 		}
-	]`)
+	}`, 1, 0, false))
 	defer cleanup()
 
 	countries, err := client.GetAllCountries()
@@ -226,22 +280,19 @@ func TestRestCountriesClientUsesSVGWhenPNGIsMissing(t *testing.T) {
 }
 
 func TestRestCountriesClientHandlesMissingOptionalFields(t *testing.T) {
-	client, cleanup := newMockRestCountriesClient(t, http.StatusOK, `[
-		{
-			"name": {
-				"common": "Testland",
-				"official": "Republic of Testland"
-			},
-			"capital": [],
-			"region": "Test Region",
-			"subregion": "",
-			"population": 999,
-			"flags": {},
-			"currencies": {},
-			"languages": {},
-			"latlng": []
-		}
-	]`)
+	client, cleanup := newMockRestCountriesClient(t, http.StatusOK, restCountriesPage(`{
+		"names": {
+			"common": "Testland",
+			"official": "Republic of Testland"
+		},
+		"capitals": [],
+		"region": "Test Region",
+		"subregion": "",
+		"population": 999,
+		"flag": {},
+		"currencies": [],
+		"languages": []
+	}`, 1, 0, false))
 	defer cleanup()
 
 	countries, err := client.GetAllCountries()
@@ -273,6 +324,142 @@ func TestRestCountriesClientHandlesMissingOptionalFields(t *testing.T) {
 
 	if country.Lng != 0 {
 		t.Errorf("expected longitude 0, got %f", country.Lng)
+	}
+}
+
+func TestRestCountriesClientReturnsErrorWhenAPIKeyMissing(t *testing.T) {
+	previousAPIKey, _ := beego.AppConfig.String("REST_COUNTRIES_API_KEY")
+	if err := beego.AppConfig.Set("REST_COUNTRIES_API_KEY", ""); err != nil {
+		t.Fatalf("failed to clear API key config: %v", err)
+	}
+	defer func() {
+		_ = beego.AppConfig.Set("REST_COUNTRIES_API_KEY", previousAPIKey)
+	}()
+
+	client := &RestCountriesClient{
+		BaseURL: "https://example.test",
+		APIKey:  "",
+		HTTPClient: &http.Client{
+			Timeout: 2 * time.Second,
+		},
+	}
+
+	_, err := client.GetAllCountries()
+	if err == nil {
+		t.Fatal("expected error when API key is missing")
+	}
+
+	if err.Error() != "REST_COUNTRIES_API_KEY is required" {
+		t.Fatalf("expected missing API key error, got %v", err)
+	}
+}
+
+func TestRestCountriesClientRequestsMultiplePagesWithNextOffset(t *testing.T) {
+	requestedOffsets := make([]int, 0, 2)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		offset, err := strconv.Atoi(r.URL.Query().Get("offset"))
+		if err != nil {
+			t.Fatalf("expected numeric offset, got %q", r.URL.Query().Get("offset"))
+		}
+
+		requestedOffsets = append(requestedOffsets, offset)
+		assertRestCountriesRequest(t, r, offset)
+
+		switch offset {
+		case 0:
+			_, _ = w.Write([]byte(restCountriesPage(`{
+				"names": {
+					"common": "Japan",
+					"official": "Japan"
+				},
+				"capitals": [{"name": "Tokyo"}],
+				"region": "Asia",
+				"subregion": "Eastern Asia",
+				"population": 125800000,
+				"flag": {
+					"url_png": "https://example.com/japan.png"
+				},
+				"currencies": [
+					{
+						"code": "JPY",
+						"name": "Japanese yen"
+					}
+				],
+				"languages": [
+					{"name": "Japanese"}
+				],
+				"coordinates": {
+					"lat": 36.0,
+					"lng": 138.0
+				}
+			}`, 1, 0, true)))
+		case 1:
+			_, _ = w.Write([]byte(restCountriesPage(`{
+				"names": {
+					"common": "France",
+					"official": "French Republic"
+				},
+				"capitals": [{"name": "Paris"}],
+				"region": "Europe",
+				"subregion": "Western Europe",
+				"population": 67000000,
+				"flag": {
+					"url_png": "https://example.com/france.png"
+				},
+				"currencies": [
+					{
+						"code": "EUR",
+						"name": "Euro"
+					}
+				],
+				"languages": [
+					{"name": "French"}
+				],
+				"coordinates": {
+					"lat": 46.0,
+					"lng": 2.0
+				}
+			}`, 1, 1, false)))
+		default:
+			t.Fatalf("unexpected offset %d", offset)
+		}
+	}))
+	defer server.Close()
+
+	client := &RestCountriesClient{
+		BaseURL: server.URL,
+		APIKey:  "test-api-key",
+		HTTPClient: &http.Client{
+			Timeout: 2 * time.Second,
+		},
+	}
+
+	countries, err := client.GetAllCountries()
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(countries) != 2 {
+		t.Fatalf("expected 2 countries, got %d", len(countries))
+	}
+
+	if !reflect.DeepEqual(requestedOffsets, []int{0, 1}) {
+		t.Fatalf("expected offsets 0,1, got %v", requestedOffsets)
+	}
+}
+
+func TestRestCountriesClientReturnsErrorWhenPaginatingWithZeroCount(t *testing.T) {
+	client, cleanup := newMockRestCountriesClient(t, http.StatusOK, restCountriesPage(``, 0, 0, true))
+	defer cleanup()
+
+	_, err := client.GetAllCountries()
+	if err == nil {
+		t.Fatal("expected error for zero-count pagination")
+	}
+
+	if err.Error() != "rest countries response cannot paginate with zero count" {
+		t.Fatalf("expected zero-count pagination error, got %v", err)
 	}
 }
 

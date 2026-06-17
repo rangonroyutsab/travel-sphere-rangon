@@ -2,9 +2,12 @@ package utils
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 	"travel-sphere-rangon/models"
@@ -14,67 +17,127 @@ import (
 
 type RestCountriesClient struct {
 	BaseURL    string
+	APIKey     string
 	HTTPClient *http.Client
 }
+
+const defaultRestCountriesBaseURL = "https://api.restcountries.com/countries/v5"
+const restCountriesPageLimit = 100
 
 func NewRestCountriesClient() *RestCountriesClient {
 	baseURL, _ := beego.AppConfig.String("REST_COUNTRIES_BASE_URL")
 	if baseURL == "" {
-		baseURL = "https://restcountries.com/v3.1"
+		baseURL = defaultRestCountriesBaseURL
 	}
+
+	apiKey, _ := beego.AppConfig.String("REST_COUNTRIES_API_KEY")
+
 	return &RestCountriesClient{
 		BaseURL:    strings.TrimRight(baseURL, "/"),
+		APIKey:     strings.TrimSpace(apiKey),
 		HTTPClient: &http.Client{Timeout: 10 * time.Second},
 	}
 }
 
+type restCountriesAPIResponse struct {
+	Data struct {
+		Objects []restCountryResponse `json:"objects"`
+		Meta    struct {
+			Count  int  `json:"count"`
+			Offset int  `json:"offset"`
+			More   bool `json:"more"`
+		} `json:"meta"`
+	} `json:"data"`
+}
+
 type restCountryResponse struct {
-	Name struct {
+	Names struct {
 		Common   string `json:"common"`
 		Official string `json:"official"`
-	} `json:"name"`
+	} `json:"names"`
 
-	Capital   []string `json:"capital"`
-	Region    string   `json:"region"`
-	Subregion string   `json:"subregion"`
+	Capitals []struct {
+		Name string `json:"name"`
+	} `json:"capitals"`
+	Region    string `json:"region"`
+	Subregion string `json:"subregion"`
 
 	Population int `json:"population"`
 
-	Flags struct {
-		PNG string `json:"png"`
-		SVG string `json:"svg"`
-	} `json:"flags"`
+	Flag struct {
+		PNG string `json:"url_png"`
+		SVG string `json:"url_svg"`
+	} `json:"flag"`
 
-	Currencies map[string]struct {
+	Currencies []struct {
+		Code string `json:"code"`
 		Name string `json:"name"`
 	} `json:"currencies"`
 
-	Languages map[string]string `json:"languages"`
+	Languages []struct {
+		Name string `json:"name"`
+	} `json:"languages"`
 
-	LatLng []float64 `json:"latlng"`
+	Coordinates *struct {
+		Lat float64 `json:"lat"`
+		Lng float64 `json:"lng"`
+	} `json:"coordinates"`
 }
 
 func (c *RestCountriesClient) GetAllCountries() ([]models.Country, error) {
-	url := c.BaseURL + "/all?fields=name,capital,region,subregion,population,flags,currencies,languages,latlng"
-
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	res, err := c.HTTPClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		return nil, fmt.Errorf("rest countries returned status %d", res.StatusCode)
+	if strings.TrimSpace(c.APIKey) == "" {
+		apiKey, _ := beego.AppConfig.String("REST_COUNTRIES_API_KEY")
+		c.APIKey = strings.TrimSpace(apiKey)
+		if c.APIKey == "" {
+			return nil, errors.New("REST_COUNTRIES_API_KEY is required")
+		}
 	}
 
 	var raw []restCountryResponse
-	if err := json.NewDecoder(res.Body).Decode(&raw); err != nil {
-		return nil, err
+	offset := 0
+
+	for {
+		requestURL, err := c.countriesURL(offset)
+		if err != nil {
+			return nil, err
+		}
+
+		req, err := http.NewRequest(http.MethodGet, requestURL, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(c.APIKey))
+		req.Header.Set("Accept", "application/json")
+
+		res, err := c.HTTPClient.Do(req)
+		if err != nil {
+			return nil, err
+		}
+
+		if res.StatusCode < 200 || res.StatusCode >= 300 {
+			res.Body.Close()
+			return nil, fmt.Errorf("rest countries returned status %d", res.StatusCode)
+		}
+
+		var page restCountriesAPIResponse
+		if err := json.NewDecoder(res.Body).Decode(&page); err != nil {
+			res.Body.Close()
+			return nil, err
+		}
+		res.Body.Close()
+
+		raw = append(raw, page.Data.Objects...)
+
+		if !page.Data.Meta.More {
+			break
+		}
+
+		if page.Data.Meta.Count == 0 {
+			return nil, errors.New("rest countries response cannot paginate with zero count")
+		}
+
+		offset = page.Data.Meta.Offset + page.Data.Meta.Count
 	}
 
 	countries := make([]models.Country, 0, len(raw))
@@ -90,44 +153,74 @@ func (c *RestCountriesClient) GetAllCountries() ([]models.Country, error) {
 	return countries, nil
 }
 
-func transformCountry(item restCountryResponse) models.Country {
-	capital := "N/A"
-	if len(item.Capital) > 0 && strings.TrimSpace(item.Capital[0]) != "" {
-		capital = item.Capital[0]
+func (c *RestCountriesClient) countriesURL(offset int) (string, error) {
+	parsedURL, err := url.Parse(c.BaseURL)
+	if err != nil {
+		return "", fmt.Errorf("invalid REST Countries base URL: %w", err)
 	}
 
-	flag := item.Flags.PNG
+	query := parsedURL.Query()
+	query.Set("response_fields", "names,capitals,region,subregion,population,flag,currencies,languages,coordinates")
+	query.Set("limit", strconv.Itoa(restCountriesPageLimit))
+	query.Set("offset", strconv.Itoa(offset))
+	parsedURL.RawQuery = query.Encode()
+
+	return parsedURL.String(), nil
+}
+
+func transformCountry(item restCountryResponse) models.Country {
+	capital := "N/A"
+	for _, itemCapital := range item.Capitals {
+		if strings.TrimSpace(itemCapital.Name) != "" {
+			capital = itemCapital.Name
+			break
+		}
+	}
+
+	flag := item.Flag.PNG
 	if flag == "" {
-		flag = item.Flags.SVG
+		flag = item.Flag.SVG
 	}
 
 	currency := "N/A"
-	for code, cur := range item.Currencies {
-		if cur.Name != "" {
-			currency = fmt.Sprintf("%s (%s)", code, cur.Name)
-		} else {
+	for _, cur := range item.Currencies {
+		code := strings.TrimSpace(cur.Code)
+		name := strings.TrimSpace(cur.Name)
+
+		switch {
+		case code != "" && name != "":
+			currency = fmt.Sprintf("%s (%s)", code, name)
+		case code != "":
 			currency = code
+		case name != "":
+			currency = name
+		default:
+			continue
 		}
+
 		break
 	}
 
 	languages := make([]string, 0, len(item.Languages))
 	for _, language := range item.Languages {
-		languages = append(languages, language)
+		name := strings.TrimSpace(language.Name)
+		if name != "" {
+			languages = append(languages, name)
+		}
 	}
 	sort.Strings(languages)
 
 	lat := 0.0
 	lng := 0.0
-	if len(item.LatLng) >= 2 {
-		lat = item.LatLng[0]
-		lng = item.LatLng[1]
+	if item.Coordinates != nil {
+		lat = item.Coordinates.Lat
+		lng = item.Coordinates.Lng
 	}
 
 	return models.Country{
-		Name:       item.Name.Common,
-		Official:   item.Name.Official,
-		Slug:       Slugify(item.Name.Common),
+		Name:       item.Names.Common,
+		Official:   item.Names.Official,
+		Slug:       Slugify(item.Names.Common),
 		Capital:    capital,
 		Region:     item.Region,
 		Subregion:  item.Subregion,

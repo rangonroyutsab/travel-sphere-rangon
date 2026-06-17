@@ -146,10 +146,13 @@ copyrequestbody = true
 DEMO_USERNAME = user
 DEMO_PASSWORD = admin
 
-REST_COUNTRIES_BASE_URL = https://restcountries.com/v3.1
+REST_COUNTRIES_BASE_URL = https://api.restcountries.com/countries/v5
+REST_COUNTRIES_API_KEY = your_rest_countries_api_key_here
 OPENTRIPMAP_BASE_URL = https://api.opentripmap.com/0.1/en/places
 OPENTRIPMAP_API_KEY = your_opentripmap_api_key_here
 ```
+
+The REST Countries v5 API key is required for country data. The application sends it as a bearer token and requests paginated country records from the configured v5 endpoint.
 
 The OpenTripMap API key is required for nearby attractions. If the key is missing or invalid, the application will still run, but the nearby attractions section may show an empty or fallback state.
 
@@ -299,8 +302,16 @@ Used for:
 Default base URL:
 
 ```txt
-https://restcountries.com/v3.1
+https://api.restcountries.com/countries/v5
 ```
+
+Required config:
+
+```ini
+REST_COUNTRIES_API_KEY = your_rest_countries_api_key_here
+```
+
+The client sends `Authorization: Bearer <REST_COUNTRIES_API_KEY>` and reads the v5 paginated `data.objects` response.
 
 ### OpenTripMap
 
@@ -422,7 +433,8 @@ copyrequestbody = true
 DEMO_USERNAME = user
 DEMO_PASSWORD = admin
 
-REST_COUNTRIES_BASE_URL = https://restcountries.com/v3.1
+REST_COUNTRIES_BASE_URL = https://api.restcountries.com/countries/v5
+REST_COUNTRIES_API_KEY = your_rest_countries_api_key_here
 OPENTRIPMAP_BASE_URL = https://api.opentripmap.com/0.1/en/places
 OPENTRIPMAP_API_KEY = your_opentripmap_api_key_here
 ```
@@ -434,10 +446,9 @@ OPENTRIPMAP_API_KEY = your_opentripmap_api_key_here
 ## Known Limitations
 
 * Wishlist data is stored in memory and resets when the server restarts.
-* OpenTripMap attractions require a valid API key.
+* REST Countries and OpenTripMap require valid API keys.
 * Weather API integration is not included unless added as a bonus feature.
 * This project is designed for assessment purposes and does not use persistent user accounts or a database.
-* As of now, there isn;t any unit test for the API integration helpers.
 
 ---
 
@@ -455,4 +466,3 @@ OPENTRIPMAP_API_KEY = your_opentripmap_api_key_here
 * Layout, header partial, and footer partial used.
 * Unit tests included.
 * README includes setup, configuration, run, and test instructions.
-

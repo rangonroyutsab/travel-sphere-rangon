@@ -4,16 +4,17 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 )
+
+const testRestCountriesResponseFields = "names,capitals,region,subregion,population,flag,currencies,languages,coordinates"
 
 func newMockCountryService(t *testing.T, statusCode int, responseBody string) (*CountryService, func()) {
 	t.Helper()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/all" {
-			t.Fatalf("expected path /all, got %s", r.URL.Path)
-		}
+		assertRestCountriesServiceRequest(t, r, 0)
 
 		w.WriteHeader(statusCode)
 		_, _ = w.Write([]byte(responseBody))
@@ -21,36 +22,81 @@ func newMockCountryService(t *testing.T, statusCode int, responseBody string) (*
 
 	service := NewCountryService()
 	service.client.BaseURL = server.URL
+	service.client.APIKey = "test-api-key"
 
 	return service, server.Close
 }
 
-func TestCountryServiceGetAllCountries(t *testing.T) {
-	service, cleanup := newMockCountryService(t, http.StatusOK, `[
-		{
-			"name": {
-				"common": "Japan",
-				"official": "Japan"
-			},
-			"capital": ["Tokyo"],
-			"region": "Asia",
-			"subregion": "Eastern Asia",
-			"population": 125800000,
-			"flags": {
-				"png": "https://example.com/japan.png",
-				"svg": "https://example.com/japan.svg"
-			},
-			"currencies": {
-				"JPY": {
-					"name": "Japanese yen"
-				}
-			},
-			"languages": {
-				"jpn": "Japanese"
-			},
-			"latlng": [36.0, 138.0]
+func assertRestCountriesServiceRequest(t *testing.T, r *http.Request, expectedOffset int) {
+	t.Helper()
+
+	if r.URL.Path != "/" {
+		t.Fatalf("expected root path, got %s", r.URL.Path)
+	}
+
+	if r.Header.Get("Authorization") != "Bearer test-api-key" {
+		t.Fatalf("expected bearer auth header, got %q", r.Header.Get("Authorization"))
+	}
+
+	if r.Header.Get("Accept") != "application/json" {
+		t.Fatalf("expected Accept application/json, got %q", r.Header.Get("Accept"))
+	}
+
+	query := r.URL.Query()
+	if query.Get("response_fields") != testRestCountriesResponseFields {
+		t.Fatalf("expected response_fields %q, got %q", testRestCountriesResponseFields, query.Get("response_fields"))
+	}
+
+	if query.Get("limit") != "100" {
+		t.Fatalf("expected limit 100, got %q", query.Get("limit"))
+	}
+
+	if query.Get("offset") != strconv.Itoa(expectedOffset) {
+		t.Fatalf("expected offset %d, got %q", expectedOffset, query.Get("offset"))
+	}
+}
+
+func restCountriesServicePage(objects string, count int, offset int, more bool) string {
+	return fmt.Sprintf(`{
+		"data": {
+			"objects": [%s],
+			"meta": {
+				"count": %d,
+				"offset": %d,
+				"more": %t
+			}
 		}
-	]`)
+	}`, objects, count, offset, more)
+}
+
+func TestCountryServiceGetAllCountries(t *testing.T) {
+	service, cleanup := newMockCountryService(t, http.StatusOK, restCountriesServicePage(`{
+		"names": {
+			"common": "Japan",
+			"official": "Japan"
+		},
+		"capitals": [{"name": "Tokyo"}],
+		"region": "Asia",
+		"subregion": "Eastern Asia",
+		"population": 125800000,
+		"flag": {
+			"url_png": "https://example.com/japan.png",
+			"url_svg": "https://example.com/japan.svg"
+		},
+		"currencies": [
+			{
+				"code": "JPY",
+				"name": "Japanese yen"
+			}
+		],
+		"languages": [
+			{"name": "Japanese"}
+		],
+		"coordinates": {
+			"lat": 36.0,
+			"lng": 138.0
+		}
+	}`, 1, 0, false))
 	defer cleanup()
 
 	countries, err := service.GetAllCountries()
@@ -102,52 +148,58 @@ func TestCountryServiceGetAllCountries(t *testing.T) {
 }
 
 func TestCountryServiceSearchCountries(t *testing.T) {
-	service, cleanup := newMockCountryService(t, http.StatusOK, `[
-		{
-			"name": {
-				"common": "Japan",
-				"official": "Japan"
-			},
-			"capital": ["Tokyo"],
-			"region": "Asia",
-			"subregion": "Eastern Asia",
-			"population": 125800000,
-			"flags": {
-				"png": "https://example.com/japan.png"
-			},
-			"currencies": {
-				"JPY": {
-					"name": "Japanese yen"
-				}
-			},
-			"languages": {
-				"jpn": "Japanese"
-			},
-			"latlng": [36.0, 138.0]
+	service, cleanup := newMockCountryService(t, http.StatusOK, restCountriesServicePage(`{
+		"names": {
+			"common": "Japan",
+			"official": "Japan"
 		},
-		{
-			"name": {
-				"common": "France",
-				"official": "French Republic"
-			},
-			"capital": ["Paris"],
-			"region": "Europe",
-			"subregion": "Western Europe",
-			"population": 67000000,
-			"flags": {
-				"png": "https://example.com/france.png"
-			},
-			"currencies": {
-				"EUR": {
-					"name": "Euro"
-				}
-			},
-			"languages": {
-				"fra": "French"
-			},
-			"latlng": [46.0, 2.0]
+		"capitals": [{"name": "Tokyo"}],
+		"region": "Asia",
+		"subregion": "Eastern Asia",
+		"population": 125800000,
+		"flag": {
+			"url_png": "https://example.com/japan.png"
+		},
+		"currencies": [
+			{
+				"code": "JPY",
+				"name": "Japanese yen"
+			}
+		],
+		"languages": [
+			{"name": "Japanese"}
+		],
+		"coordinates": {
+			"lat": 36.0,
+			"lng": 138.0
 		}
-	]`)
+	},
+	{
+		"names": {
+			"common": "France",
+			"official": "French Republic"
+		},
+		"capitals": [{"name": "Paris"}],
+		"region": "Europe",
+		"subregion": "Western Europe",
+		"population": 67000000,
+		"flag": {
+			"url_png": "https://example.com/france.png"
+		},
+		"currencies": [
+			{
+				"code": "EUR",
+				"name": "Euro"
+			}
+		],
+		"languages": [
+			{"name": "French"}
+		],
+		"coordinates": {
+			"lat": 46.0,
+			"lng": 2.0
+		}
+	}`, 2, 0, false))
 	defer cleanup()
 
 	tests := []struct {
@@ -213,30 +265,32 @@ func TestCountryServiceSearchCountries(t *testing.T) {
 }
 
 func TestCountryServiceGetCountryBySlug(t *testing.T) {
-	service, cleanup := newMockCountryService(t, http.StatusOK, `[
-		{
-			"name": {
-				"common": "Bangladesh",
-				"official": "People's Republic of Bangladesh"
-			},
-			"capital": ["Dhaka"],
-			"region": "Asia",
-			"subregion": "Southern Asia",
-			"population": 170000000,
-			"flags": {
-				"png": "https://example.com/bangladesh.png"
-			},
-			"currencies": {
-				"BDT": {
-					"name": "Bangladeshi taka"
-				}
-			},
-			"languages": {
-				"ben": "Bengali"
-			},
-			"latlng": [24.0, 90.0]
+	service, cleanup := newMockCountryService(t, http.StatusOK, restCountriesServicePage(`{
+		"names": {
+			"common": "Bangladesh",
+			"official": "People's Republic of Bangladesh"
+		},
+		"capitals": [{"name": "Dhaka"}],
+		"region": "Asia",
+		"subregion": "Southern Asia",
+		"population": 170000000,
+		"flag": {
+			"url_png": "https://example.com/bangladesh.png"
+		},
+		"currencies": [
+			{
+				"code": "BDT",
+				"name": "Bangladeshi taka"
+			}
+		],
+		"languages": [
+			{"name": "Bengali"}
+		],
+		"coordinates": {
+			"lat": 24.0,
+			"lng": 90.0
 		}
-	]`)
+	}`, 1, 0, false))
 	defer cleanup()
 
 	country, err := service.GetCountryBySlug("bangladesh")
@@ -250,30 +304,32 @@ func TestCountryServiceGetCountryBySlug(t *testing.T) {
 }
 
 func TestCountryServiceGetCountryBySlugReturnsErrorForMissingSlug(t *testing.T) {
-	service, cleanup := newMockCountryService(t, http.StatusOK, `[
-		{
-			"name": {
-				"common": "Bangladesh",
-				"official": "People's Republic of Bangladesh"
-			},
-			"capital": ["Dhaka"],
-			"region": "Asia",
-			"subregion": "Southern Asia",
-			"population": 170000000,
-			"flags": {
-				"png": "https://example.com/bangladesh.png"
-			},
-			"currencies": {
-				"BDT": {
-					"name": "Bangladeshi taka"
-				}
-			},
-			"languages": {
-				"ben": "Bengali"
-			},
-			"latlng": [24.0, 90.0]
+	service, cleanup := newMockCountryService(t, http.StatusOK, restCountriesServicePage(`{
+		"names": {
+			"common": "Bangladesh",
+			"official": "People's Republic of Bangladesh"
+		},
+		"capitals": [{"name": "Dhaka"}],
+		"region": "Asia",
+		"subregion": "Southern Asia",
+		"population": 170000000,
+		"flag": {
+			"url_png": "https://example.com/bangladesh.png"
+		},
+		"currencies": [
+			{
+				"code": "BDT",
+				"name": "Bangladeshi taka"
+			}
+		],
+		"languages": [
+			{"name": "Bengali"}
+		],
+		"coordinates": {
+			"lat": 24.0,
+			"lng": 90.0
 		}
-	]`)
+	}`, 1, 0, false))
 	defer cleanup()
 
 	_, err := service.GetCountryBySlug("missing-country")
@@ -283,7 +339,7 @@ func TestCountryServiceGetCountryBySlugReturnsErrorForMissingSlug(t *testing.T) 
 }
 
 func TestCountryServiceGetDefaultCountriesLimitsToTwentyFour(t *testing.T) {
-	response := `[`
+	response := ""
 
 	for i := 1; i <= 30; i++ {
 		if i > 1 {
@@ -291,32 +347,34 @@ func TestCountryServiceGetDefaultCountriesLimitsToTwentyFour(t *testing.T) {
 		}
 
 		response += fmt.Sprintf(`{
-			"name": {
+			"names": {
 				"common": "Country %02d",
 				"official": "Country %02d Official"
 			},
-			"capital": ["Capital"],
+			"capitals": [{"name": "Capital"}],
 			"region": "Asia",
 			"subregion": "Test",
 			"population": 1000,
-			"flags": {
-				"png": "https://example.com/flag.png"
+			"flag": {
+				"url_png": "https://example.com/flag.png"
 			},
-			"currencies": {
-				"USD": {
+			"currencies": [
+				{
+					"code": "USD",
 					"name": "Dollar"
 				}
-			},
-			"languages": {
-				"eng": "English"
-			},
-			"latlng": [1.0, 2.0]
+			],
+			"languages": [
+				{"name": "English"}
+			],
+			"coordinates": {
+				"lat": 1.0,
+				"lng": 2.0
+			}
 		}`, i, i)
 	}
 
-	response += `]`
-
-	service, cleanup := newMockCountryService(t, http.StatusOK, response)
+	service, cleanup := newMockCountryService(t, http.StatusOK, restCountriesServicePage(response, 30, 0, false))
 	defer cleanup()
 
 	countries, err := service.GetDefaultCountries()
@@ -326,6 +384,50 @@ func TestCountryServiceGetDefaultCountriesLimitsToTwentyFour(t *testing.T) {
 
 	if len(countries) != 24 {
 		t.Fatalf("expected 24 countries, got %d", len(countries))
+	}
+}
+
+func TestCountryServiceHandlesMissingOptionalFields(t *testing.T) {
+	service, cleanup := newMockCountryService(t, http.StatusOK, restCountriesServicePage(`{
+		"names": {
+			"common": "Testland",
+			"official": "Republic of Testland"
+		},
+		"capitals": [],
+		"region": "Test Region",
+		"subregion": "",
+		"population": 999,
+		"flag": {},
+		"currencies": [],
+		"languages": []
+	}`, 1, 0, false))
+	defer cleanup()
+
+	countries, err := service.GetAllCountries()
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	country := countries[0]
+
+	if country.Capital != "N/A" {
+		t.Errorf("expected capital N/A, got %s", country.Capital)
+	}
+
+	if country.Currency != "N/A" {
+		t.Errorf("expected currency N/A, got %s", country.Currency)
+	}
+
+	if len(country.Languages) != 0 {
+		t.Errorf("expected no languages, got %v", country.Languages)
+	}
+
+	if country.Lat != 0 {
+		t.Errorf("expected latitude 0, got %f", country.Lat)
+	}
+
+	if country.Lng != 0 {
+		t.Errorf("expected longitude 0, got %f", country.Lng)
 	}
 }
 
